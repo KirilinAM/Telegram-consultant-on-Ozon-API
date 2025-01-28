@@ -2,9 +2,10 @@ import os
 from bs4 import BeautifulSoup
 from itertools import chain
 import pandas as pd
-from openai import OpenAI  # будем использовать для токинизации
-import re  # для вырезания ссылок <ref> из статей Википедии
+from openai import OpenAI
+import re 
 import tiktoken  # для подсчета токенов
+from collections import defaultdict
 
 import API_KEYS
 
@@ -13,65 +14,66 @@ client = OpenAI(api_key = os.environ.get("OPENAI_API_KEY"))
 GPT_MODEL = "gpt-3.5-turbo"  # only matters insofar as it selects which tokenizer to use
 EMBEDDING_MODEL = "text-embedding-ada-002"  # Модель токенизации от OpenAI
 
-def update_hierarchy(hierarchy,new_header,new_lewel):
-    # Обновляем иерархию:
-    # Удаляем все заголовки, уровень которых больше или равен текущему
-    while hierarchy and int(hierarchy[-1]["level"]) >= new_lewel:
-        hierarchy.pop()
-    
-    # Добавляем текущий заголовок в иерархию
-    hierarchy.append({
-        "level": new_lewel,
-        "title": new_header 
-    })
+def is_tag(element):
+    """Проверяет, является ли элемент тегом."""
+    return element.name is not None
 
-    return hierarchy
+def is_header(element):
+    """Проверяет, является ли элемент заголовком."""
+    return element.name.startswith('h') and element.name[1:].isdigit()
 
-def all_section_with_text(html,preheader):
-    """
-    Из строки html возвращает список разделов с ведущим к ним заголовкам
-    Каждая запись состоит из списка заголовков в порядке иерархии и текст к которому они ведут
-    """
-    soup = BeautifulSoup(html, "html.parser")
+def contains_heading_tags(element):
+    """Проверяет, содержит ли элемент вложенные заголовки."""
+    return bool(element.find(is_header))
 
-    # Список для хранения разделов
-    sections = []
+def update_header_hierarchy(hierarchy, header):
+    """Обновляет иерархию заголовков."""
+    header_level = int(header.name[-1])  # Уровень текущего заголовка (1 для h1, 2 для h2 и т.д.)
+    header_text = header.get_text(strip=True)  # Текст текущего заголовка
 
-    # Стек для отслеживания иерархии заголовков
-    hierarchy = []
+    # Удаляем все заголовки с уровнем >= текущего
+    for level in list(hierarchy.keys()):  # Используем list для безопасного удаления
+        if level >= header_level:
+            del hierarchy[level]
 
-    # Текущий раздел
-    current_section = None
+    # Добавляем текущий заголовок (уровень и текст)
+    hierarchy[header_level] = header_text
 
-    # Проходим по всем элементам документа
-    for element in soup.find_all():
-        # Если элемент — заголовок
-        if element.name in ["h1", "h2", "h3", "h4", "h5", "h6"]:
-            # Определяем уровень и имя
-            level = int(element.name[1])
-            name = element.text.strip()
-            
-            #Обновление иерархии
-            hierarchy = update_hierarchy(hierarchy,name,level) 
-            
-            # Формируем полный путь заголовка
-            full_title = [preheader] + [h["title"] for h in hierarchy]
-            
-            # Создаём новый раздел
-            current_section = [
-                full_title
-                ,""
-            ]
-            
-            # Добавляем раздел в список
-            sections.append(current_section)
-        
-        # Если элемент — контент (например, <p>, <div>)
-        elif current_section:
-            # Добавляем текст элемента к содержимому текущего раздела
-            current_section[1] += element.text.strip() + "\n"
+def process_element(element, hierarchy=None, sections=None) -> dict[int:str]:
+    if hierarchy is None:
+        hierarchy = {}  # Инициализация иерархии как словаря
+    if sections is None:
+        sections = defaultdict(str)  # Инициализация словаря с пустыми строками по умолчанию
+
+    while element is not None:
+        if is_tag(element):
+            if is_header(element):
+                update_header_hierarchy(hierarchy, element)
+            else:
+                if contains_heading_tags(element):
+                    first_child = element.find()
+                    process_element(first_child, hierarchy, sections)
+                else:
+                    # Создаем ключ для sections, используя значения hierarchy
+                    hierarchy_key = tuple(hierarchy.values())
+                    text = element.get_text(strip=True,separator='\n')
+                    sections[hierarchy_key] += "\n" + text if sections[hierarchy_key] else text
+        else:
+            text = element.strip()
+            if text:
+                # Создаем ключ для sections, используя значения hierarchy
+                hierarchy_key = tuple(hierarchy.values())
+                sections[hierarchy_key] += "\n" + text if sections[hierarchy_key] else text
+        element = element.next_sibling
 
     return sections
+
+def all_section_with_text(html,preheader):
+    soup = BeautifulSoup(html, "html.parser")
+    hierarchy = {0:preheader}
+    element = soup.find()
+    sections_with_text = [[list(sections), text] for sections, text in process_element(element,hierarchy=hierarchy).items()]
+    return sections_with_text
 
 # Очистка текста секции от ссылок <ref>xyz</ref>, начальных и конечных пробелов
 def clean_section(section: tuple[list[str], str]) -> tuple[list[str], str]:
@@ -127,7 +129,6 @@ def halved_by_delimiter(string: str, delimiter: str = "\n") -> list[str, str]:
         right = delimiter.join(chunks[i:])
         # Возвращаем левую и правую часть оптимально разделенной строки
         return [left, right]
-
 
 # Функция обрезает строку до максимально разрешенного числа токенов
 def truncated_string(
@@ -224,8 +225,9 @@ def main():
     sections = strings
 
     df = pd.DataFrame({"text": sections[:10]})
+    # df = pd.DataFrame({"text": sections})
 
-    df['embedding'] = df.text.apply(lambda x: get_embedding(x, model='text-embedding-ada-002'))
+    # df['embedding'] = df.text.apply(lambda x: get_embedding(x, model='text-embedding-ada-002'))
 
     df.to_csv(SAVE_PATH, index=False)
 
