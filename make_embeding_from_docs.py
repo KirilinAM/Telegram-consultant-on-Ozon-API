@@ -6,10 +6,14 @@ from openai import OpenAI
 import re 
 import tiktoken  # для подсчета токенов
 from collections import defaultdict
+from tqdm import tqdm
 
 import API_KEYS
 
 client = OpenAI(api_key = os.environ.get("OPENAI_API_KEY"))
+
+tqdm.pandas()
+
 
 GPT_MODEL = "gpt-3.5-turbo"  # only matters insofar as it selects which tokenizer to use
 EMBEDDING_MODEL = "text-embedding-ada-002"  # Модель токенизации от OpenAI
@@ -227,7 +231,7 @@ def main():
     df = pd.DataFrame({"text": sections[:10]})
     # df = pd.DataFrame({"text": sections})
 
-    # df['embedding'] = df.text.apply(lambda x: get_embedding(x, model='text-embedding-ada-002'))
+    df['embedding'] = df['text'].progress_apply(lambda x: get_embedding(x, model='text-embedding-ada-002'))
 
     df.to_csv(SAVE_PATH, index=False)
 
