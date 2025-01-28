@@ -8,6 +8,8 @@ openai = "*"
 beautifulsoup4 = "*"
 pandas = "*"
 tiktoken = "*"
+scipy = "*"
+numpy = "*"
 
 [dev-packages]
 ipykernel = "*"
