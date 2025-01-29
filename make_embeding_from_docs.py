@@ -228,8 +228,8 @@ def main():
         strings.extend(split_strings_from_subsection(section, max_tokens=MAX_TOKENS, max_recursion=10))
     sections = strings
 
-    df = pd.DataFrame({"text": sections[:10]})
-    # df = pd.DataFrame({"text": sections})
+    # df = pd.DataFrame({"text": sections[:10]})
+    df = pd.DataFrame({"text": sections})
 
     df['embedding'] = df['text'].progress_apply(lambda x: get_embedding(x, model='text-embedding-ada-002'))
 
