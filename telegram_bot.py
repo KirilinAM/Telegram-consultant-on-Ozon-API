@@ -8,10 +8,6 @@ from search_ask import ask_on_ozon_api
 # Создаем роутер
 router = Router()
 
-# Предполагаемая функция обработки (должна быть реализована)
-# def ask(text: str) -> str:
-#     return "Processed: " + text
-
 @router.message(Command("start"))
 async def cmd_start(message: Message) -> None:
     """Обработчик команды /start"""
