@@ -10,6 +10,7 @@ pandas = "*"
 tiktoken = "*"
 scipy = "*"
 numpy = "*"
+aiogram = "*"
 
 [dev-packages]
 ipykernel = "*"
