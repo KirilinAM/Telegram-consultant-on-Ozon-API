@@ -28,7 +28,7 @@ async def cmd_help(message: Message) -> None:
         "- Могу ли я управлять рекламой с помощью этого API? Опиши основные способы."
     )
     await message.answer(help_text)
-
+    
 @router.message()
 async def handle_text(message: Message) -> None:
     """Обработчик текстовых сообщений"""
