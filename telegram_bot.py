@@ -2,6 +2,7 @@ import os
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from aiogram.types import Message
+import asyncio
 from search_ask import ask_on_ozon_api
 
 # Создаем роутер
@@ -42,5 +43,4 @@ async def main() -> None:
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
