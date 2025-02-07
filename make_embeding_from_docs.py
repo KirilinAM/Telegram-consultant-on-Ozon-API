@@ -8,8 +8,6 @@ import tiktoken  # для подсчета токенов
 from collections import defaultdict
 from tqdm import tqdm
 
-import API_KEYS
-
 client = OpenAI(api_key = os.environ.get("OPENAI_API_KEY"))
 
 tqdm.pandas()
